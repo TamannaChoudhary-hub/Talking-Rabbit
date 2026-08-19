@@ -210,6 +210,13 @@ function Icon({ name, size = 18, className = "" }) {
 
 const NAV_SECTIONS = [
   {
+    id: "action",
+    label: "Action Center",
+    icon: "alert",
+    title: "🚨 Business Action Center",
+    subtitle: "Detected problems, root causes, and recommended actions — powered by your live data."
+  },
+  {
     id: "overview",
     label: "Overview",
     icon: "grid",
@@ -290,6 +297,7 @@ function App() {
   const [businessStory, setBusinessStory] = useState(null);
   const [storyLoading, setStoryLoading] = useState(false);
   const [answerChart, setAnswerChart] = useState(null);
+  const [actionCenter, setActionCenter] = useState(null);
 
   // Navigation state
   const [activeSection, setActiveSection] = useState("overview");
@@ -446,6 +454,12 @@ const fetchNarrative = (queryString = "") => {
       .then(response => response.json())
       .then(data => setTopProducts(data))
       .catch(error => console.error("Top products error:", error));
+
+    // Business Action Center
+    fetch(`http://127.0.0.1:8000/api/action-center${query}`)
+      .then(response => response.json())
+      .then(data => setActionCenter(data))
+      .catch(error => console.error("Action center error:", error));
 
   }, [
     selectedYear,
@@ -912,6 +926,35 @@ const fetchNarrative = (queryString = "") => {
 
         {activeSection === "overview" && (
           <div className="view">
+
+            {/* Mini Alert Strip — links to Action Center */}
+            {actionCenter && actionCenter.total_alerts > 0 && (
+              <div className="overview-alert-strip">
+                <div className="overview-alert-strip-left">
+                  <span className="overview-alert-icon">🚨</span>
+                  <div>
+                    <span className="overview-alert-title">
+                      {actionCenter.critical_count > 0
+                        ? `${actionCenter.critical_count} critical issue${actionCenter.critical_count > 1 ? "s" : ""} detected`
+                        : `${actionCenter.warning_count} warning${actionCenter.warning_count > 1 ? "s" : ""} detected`}
+                    </span>
+                    <span className="overview-alert-sub">
+                      {actionCenter.critical_count > 0 && actionCenter.warning_count > 0
+                        ? `+${actionCenter.warning_count} warning${actionCenter.warning_count > 1 ? "s" : ""} · `
+                        : ""}
+                      ${actionCenter.recoverable_profit.toLocaleString()} recoverable profit identified
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="overview-alert-strip-btn"
+                  onClick={() => goTo("action")}
+                >
+                  View Action Center →
+                </button>
+              </div>
+            )}
 
             <div className="view-section">
               <section className="kpi-container">
@@ -1719,6 +1762,135 @@ const fetchNarrative = (queryString = "") => {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ================= BUSINESS ACTION CENTER ================= */}
+
+        {activeSection === "action" && (
+          <div className="view action-center-view">
+
+            {/* Health Score Header Strip */}
+            {actionCenter && (
+              <div className="ac-health-strip">
+                <div className="ac-health-left">
+                  <div className={`ac-health-score-badge ${
+                    actionCenter.health_score >= 75 ? "score-good" :
+                    actionCenter.health_score >= 55 ? "score-warn" : "score-bad"
+                  }`}>
+                    <span className="ac-score-num">{actionCenter.health_score}</span>
+                    <span className="ac-score-label">Health Score</span>
+                  </div>
+                  <div className="ac-health-meta">
+                    <h3 className="ac-health-title">Business Action Center</h3>
+                    <p className="ac-health-sub">
+                      {actionCenter.total_alerts === 0
+                        ? "No significant issues detected. Business is running cleanly."
+                        : `${actionCenter.total_alerts} issue${actionCenter.total_alerts > 1 ? "s" : ""} detected across your data — prioritised by financial impact.`}
+                    </p>
+                  </div>
+                </div>
+                <div className="ac-health-stats">
+                  {actionCenter.critical_count > 0 && (
+                    <div className="ac-stat-pill pill-critical">
+                      <span className="ac-pill-num">{actionCenter.critical_count}</span>
+                      <span className="ac-pill-label">Critical</span>
+                    </div>
+                  )}
+                  {actionCenter.warning_count > 0 && (
+                    <div className="ac-stat-pill pill-warning">
+                      <span className="ac-pill-num">{actionCenter.warning_count}</span>
+                      <span className="ac-pill-label">Warning</span>
+                    </div>
+                  )}
+                  {actionCenter.recoverable_profit > 0 && (
+                    <div className="ac-stat-pill pill-recover">
+                      <span className="ac-pill-num">${actionCenter.recoverable_profit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      <span className="ac-pill-label">Recoverable</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {actionCenter && actionCenter.total_alerts === 0 && (
+              <div className="ac-empty-state">
+                <span className="ac-empty-icon">✅</span>
+                <h3>No critical issues found</h3>
+                <p>All categories, products, and regions are operating within acceptable ranges for the current filter selection.</p>
+              </div>
+            )}
+
+            {/* Loading state */}
+            {!actionCenter && (
+              <div className="ac-empty-state">
+                <Icon name="loader" size={28} className="spin" />
+                <p>Analysing your data…</p>
+              </div>
+            )}
+
+            {/* Alert Cards */}
+            {actionCenter && actionCenter.alerts && actionCenter.alerts.length > 0 && (
+              <div className="ac-alert-list">
+                {actionCenter.alerts.map((alert) => (
+                  <div key={alert.id} className={`ac-alert-card ${alert.severity}`}>
+
+                    {/* Card Header */}
+                    <div className="ac-alert-header">
+                      <div className="ac-alert-header-left">
+                        <span className="ac-alert-category">{alert.category}</span>
+                        <h3 className="ac-alert-problem">{alert.problem}</h3>
+                      </div>
+                      <span className={`ac-severity-badge badge-${alert.severity}`}>{alert.tag}</span>
+                    </div>
+
+                    {/* Metrics Grid */}
+                    <div className="ac-metrics-grid">
+                      {alert.metrics.map((m, idx) => (
+                        <div key={idx} className={`ac-metric-pill ${m.alert ? "metric-alert" : ""}`}>
+                          <span className="ac-metric-label">{m.label}</span>
+                          <span className="ac-metric-value">{m.value}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Why + Action */}
+                    <div className="ac-callouts">
+                      <div className="ac-why-box">
+                        <span className="ac-callout-heading">
+                          <Icon name="sparkles" size={13} /> Why this is happening
+                        </span>
+                        <p>{alert.why}</p>
+                      </div>
+                      <div className="ac-action-box">
+                        <span className="ac-callout-heading">
+                          <Icon name="target" size={13} /> Recommended action
+                        </span>
+                        <p>{alert.action}</p>
+                      </div>
+                    </div>
+
+                    {/* Ask AI Button */}
+                    <div className="ac-card-footer">
+                      <span className="ac-impact-note">{alert.impact}</span>
+                      <button
+                        type="button"
+                        className="ac-ask-ai-btn"
+                        onClick={() => {
+                          setQuestion(alert.question_prompt);
+                          setFloatingChatOpen(true);
+                        }}
+                      >
+                        <Icon name="bot" size={13} /> Ask AI about this
+                      </button>
+                    </div>
+
+                  </div>
+                ))}
+              </div>
+            )}
+
           </div>
         )}
 
